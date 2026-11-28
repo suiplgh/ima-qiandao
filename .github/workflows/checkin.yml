@@ -2,10 +2,12 @@ name: ima 每日签到
 
 on:
   schedule:
-    # 北京时间每天 07:00（UTC 23:00，即前一天 23 点）
-    # GitHub 定时任务有 1~4 小时平台延迟，07:00 触发可确保当天上午完成签到；
-    # 定时任务时区固定 UTC，不能写北京时间，必须换算成 UTC 23:00。
-    - cron: '0 23 * * *'
+    # 北京时间每天 01:00 主签到（UTC 17:00，即前一天 17 点）
+    # 北京时间每天 22:00 晚间补领（UTC 14:00），主签到失败时的兜底
+    # 脚本幂等：已签到会跳过，两个时点重复触发不会重复领
+    # GitHub 定时有 1~4 小时平台延迟，cron 写的是最早触发时间；时区固定 UTC，须换算
+    - cron: '0 17 * * *'
+    - cron: '0 14 * * *'
   workflow_dispatch:
 
 permissions:
@@ -42,13 +44,13 @@ jobs:
           restore-keys: |
             ima-cred-
 
-      - name: 兜底：从旧版 IMA_CREDENTIALS Secret 迁移凭证（如有）
+      - name: 用 IMA_CREDENTIALS Secret 覆盖凭证（Secret 优先于缓存）
         env:
           IMA_CREDENTIALS: ${{ secrets.IMA_CREDENTIALS }}
         run: |
-          if [ ! -f credentials.json ] && [ -n "$IMA_CREDENTIALS" ]; then
+          if [ -n "$IMA_CREDENTIALS" ]; then
             printf '%s' "$IMA_CREDENTIALS" > credentials.json
-            echo "已从 IMA_CREDENTIALS Secret 迁移凭证，后续将持久化在 Actions 缓存中"
+            echo "已从 IMA_CREDENTIALS Secret 恢复凭证（Secret 优先于缓存）"
           fi
 
       - name: 检查凭证
